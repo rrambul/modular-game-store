@@ -1,0 +1,29 @@
+{
+  "name": "@mgs/store",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "rspack serve --mode development",
+    "build": "rspack build --mode production"
+  },
+  "dependencies": {
+    "@mgs/design-system": "workspace:*",
+    "@mgs/event-bus": "workspace:*",
+    "@mgs/types": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@module-federation/enhanced": "^0.8.4",
+    "@rspack/cli": "^1.1.8",
+    "@rspack/core": "^1.1.8",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "postcss-loader": "^8.1.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.5.4"
+  }
+}

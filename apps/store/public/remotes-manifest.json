@@ -1,0 +1,46 @@
+{
+  "cart": {
+    "activeVersion": "1.0.0",
+    "versions": {
+      "1.0.0": {
+        "CartWidget": {
+          "url": "http://localhost:3001/remoteEntry.js",
+          "scope": "cart",
+          "module": "./CartWidget",
+          "version": "1.0.0"
+        },
+        "CartPage": {
+          "url": "http://localhost:3001/remoteEntry.js",
+          "scope": "cart",
+          "module": "./CartPage",
+          "version": "1.0.0"
+        }
+      }
+    }
+  },
+  "reviews": {
+    "activeVersion": "1.0.0",
+    "versions": {
+      "1.0.0": {
+        "ReviewList": {
+          "url": "http://localhost:3002/remoteEntry.js",
+          "scope": "reviews",
+          "module": "./ReviewList",
+          "version": "1.0.0"
+        },
+        "ReviewForm": {
+          "url": "http://localhost:3002/remoteEntry.js",
+          "scope": "reviews",
+          "module": "./ReviewForm",
+          "version": "1.0.0"
+        },
+        "ReviewSummary": {
+          "url": "http://localhost:3002/remoteEntry.js",
+          "scope": "reviews",
+          "module": "./ReviewSummary",
+          "version": "1.0.0"
+        }
+      }
+    }
+  }
+}
