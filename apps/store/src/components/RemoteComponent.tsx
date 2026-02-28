@@ -1,7 +1,23 @@
 import React, { Suspense, useMemo } from 'react';
 import { Skeleton } from '@mgs/design-system';
-import { loadRemoteComponent } from '../utils/remoteLoader';
 import { ErrorBoundary } from './ErrorBoundary';
+
+/**
+ * Registry of federated module imports.
+ * These use standard Module Federation imports that Zephyr resolves at build time.
+ * Localhost URLs in rspack.config.js serve as dev fallbacks.
+ */
+const remoteModules: Record<string, Record<string, () => Promise<{ default: React.ComponentType<any> }>>> = {
+  cart: {
+    CartWidget: () => import('cart/CartWidget'),
+    CartPage: () => import('cart/CartPage'),
+  },
+  reviews: {
+    ReviewList: () => import('reviews/ReviewList'),
+    ReviewForm: () => import('reviews/ReviewForm'),
+    ReviewSummary: () => import('reviews/ReviewSummary'),
+  },
+};
 
 interface RemoteComponentProps {
   remoteName: string;
@@ -12,10 +28,10 @@ interface RemoteComponentProps {
 }
 
 /**
- * Wrapper that dynamically loads a federated remote component with:
+ * Wrapper that loads a federated remote component with:
  * - Suspense (shows skeleton during load)
  * - ErrorBoundary (graceful fallback if remote is unavailable)
- * - Runtime manifest-based resolution
+ * - Zephyr-resolved remote URLs (build-time injection)
  */
 export function RemoteComponent({
   remoteName,
@@ -26,17 +42,24 @@ export function RemoteComponent({
 }: RemoteComponentProps) {
   const LazyComponent = useMemo(
     () =>
-      React.lazy(() =>
-        loadRemoteComponent(remoteName, componentName).catch((err) => {
+      React.lazy(() => {
+        const loader = remoteModules[remoteName]?.[componentName];
+        if (!loader) {
+          return Promise.resolve({
+            default: () => {
+              throw new Error(`Unknown remote module: ${remoteName}/${componentName}`);
+            },
+          });
+        }
+        return loader().catch((err) => {
           console.warn(`[RemoteComponent] Failed to load ${remoteName}/${componentName}:`, err);
-          // Return a module with a component that throws so ErrorBoundary catches it
           return {
             default: () => {
               throw err;
             },
           };
-        }),
-      ),
+        });
+      }),
     [remoteName, componentName],
   );
 
