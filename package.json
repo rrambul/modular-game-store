@@ -1,0 +1,17 @@
+{
+  "name": "modular-game-store",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n store,cart,reviews -c blue,green,yellow \"pnpm --filter @mgs/store dev\" \"pnpm --filter @mgs/cart dev\" \"pnpm --filter @mgs/reviews dev\"",
+    "build": "pnpm -r build",
+    "build:store": "pnpm --filter @mgs/store build",
+    "build:cart": "pnpm --filter @mgs/cart build",
+    "build:reviews": "pnpm --filter @mgs/reviews build",
+    "build:version": "node scripts/build-version.js",
+    "clean": "pnpm -r exec rm -rf dist"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.5.4"
+  }
+}

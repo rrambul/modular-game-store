@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mgs/design-system": ["packages/design-system/src/index.ts"],
+      "@mgs/design-system/*": ["packages/design-system/src/*"],
+      "@mgs/event-bus": ["packages/event-bus/src/index.ts"],
+      "@mgs/types": ["packages/types/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
