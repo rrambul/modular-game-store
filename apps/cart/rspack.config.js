@@ -1,11 +1,12 @@
 const path = require('path');
 const { ModuleFederationPlugin } = require('@module-federation/enhanced/rspack');
 const { HtmlRspackPlugin, DefinePlugin } = require('@rspack/core');
+const { withZephyr } = require('zephyr-webpack-plugin');
 
 const version = process.env.VERSION || require('./package.json').version;
 
 /** @type {import('@rspack/core').Configuration} */
-module.exports = {
+module.exports = withZephyr()({
   entry: './src/index.ts',
   output: {
     path: path.resolve(__dirname, 'dist', `v${version}`),
@@ -70,4 +71,4 @@ module.exports = {
       title: 'Cart MF — Standalone',
     }),
   ],
-};
+});
