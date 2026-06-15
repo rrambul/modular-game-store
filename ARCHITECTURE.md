@@ -9,13 +9,13 @@ This document explains how the Modular Game Store micro-frontend platform is arc
 1. [High-Level Overview](#high-level-overview)
 2. [Monorepo Layout](#monorepo-layout)
 3. [Module Federation Setup](#module-federation-setup)
-4. [Dynamic Remote Loading](#dynamic-remote-loading)
+4. [Remote Resolution](#remote-resolution)
 5. [Shared Dependency Negotiation](#shared-dependency-negotiation)
 6. [Cross-MF Communication](#cross-mf-communication)
 7. [Cart State Management](#cart-state-management)
 8. [Styling Architecture](#styling-architecture)
 9. [Build Pipeline](#build-pipeline)
-10. [Versioning Strategy](#versioning-strategy)
+10. [Deployment](#deployment)
 11. [Error Handling](#error-handling)
 
 ---
@@ -34,8 +34,8 @@ This document explains how the Modular Game Store micro-frontend platform is arc
 │  │   └──────────┘  └──────────┘  └──────────────┘   │  │
 │  │                                                   │  │
 │  │   ┌─────────────────┐  ┌────────────────────┐    │  │
-│  │   │  RemoteComponent│  │  remoteLoader.ts   │    │  │
-│  │   │  (Lazy+Suspend) │  │  (Dynamic Imports) │    │  │
+│  │   │  RemoteComponent│  │  Zephyr runtime    │    │  │
+│  │   │  (Lazy+Suspend) │  │  remote resolution │    │  │
 │  │   └────────┬────────┘  └────────┬───────────┘    │  │
 │  └────────────┼─────────────────────┼────────────────┘  │
 │               │                     │                    │
@@ -50,7 +50,7 @@ This document explains how the Modular Game Store micro-frontend platform is arc
 │                                                         │
 │  ┌───────────────────────────────────────────────────┐  │
 │  │              Shared Singletons                    │  │
-│  │   react 18  ·  react-dom 18  ·  react-router-dom │  │
+│  │           react 18   ·   react-dom 18            │  │
 │  └───────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -120,16 +120,20 @@ new ModuleFederationPlugin({
 
 ### Host Configuration (Store)
 
-The host declares **no static remotes**. All remotes are loaded dynamically at runtime:
+The host declares its remotes statically; Zephyr rewrites the entry URLs at runtime (see [Remote Resolution](#remote-resolution)). The localhost entries are dev fallbacks:
 
-```typescript
-// apps/store/rspack.config.ts
+```javascript
+// apps/store/rspack.config.js
 new ModuleFederationPlugin({
   name: 'store',
-  remotes: {},  // intentionally empty
+  dts: false,
+  remotes: {
+    cart: 'cart@http://localhost:3001/remoteEntry.js',
+    reviews: 'reviews@http://localhost:3002/remoteEntry.js',
+  },
   shared: {
-    react: { singleton: true, requiredVersion: '^18.0.0' },
-    'react-dom': { singleton: true, requiredVersion: '^18.0.0' },
+    react: { singleton: true, requiredVersion: '^18.3.0' },
+    'react-dom': { singleton: true, requiredVersion: '^18.3.0' },
   },
 });
 ```
@@ -137,67 +141,46 @@ new ModuleFederationPlugin({
 Key config decisions:
 - **`eager: false`** for shared deps (avoids `factory is undefined` runtime error)
 - **`splitChunks.chunks: 'async'`** in the host (prevents shared modules from being split into sync chunks that load before federation initializes)
+- **`dts: false`** — federated types are hand-maintained in `apps/store/src/remotes.d.ts` rather than auto-generated
 
 ---
 
-## Dynamic Remote Loading
+## Remote Resolution
 
-The host resolves remotes at runtime using a manifest file and a custom loader:
+The host imports remotes with standard Module Federation syntax. `RemoteComponent` wraps each one in `React.lazy` + `Suspense` + an `ErrorBoundary`:
 
-### Manifest (`remotes-manifest.json`)
-
-```json
-{
-  "cart": {
-    "activeVersion": "1.0.0",
-    "versions": {
-      "1.0.0": {
-        "CartWidget": {
-          "url": "http://localhost:3001/remoteEntry.js",
-          "scope": "cart",
-          "module": "./CartWidget",
-          "version": "1.0.0"
-        }
-      }
-    }
-  }
-}
+```tsx
+// apps/store/src/components/RemoteComponent.tsx
+const remoteModules = {
+  cart: {
+    CartWidget: () => import('cart/CartWidget'),
+    CartPage: () => import('cart/CartPage'),
+  },
+  reviews: {
+    ReviewList: () => import('reviews/ReviewList'),
+    // ...
+  },
+};
 ```
 
-### Loading Flow
+The `import('cart/CartWidget')` specifiers are matched against the `remotes` map in the host's `rspack.config.js`, which points at localhost `remoteEntry.js` URLs for local dev.
+
+### Zephyr runtime resolution
+
+In a Zephyr build (`withZephyr()`), a runtime plugin is injected into the host bundle. On startup it fetches Zephyr's `zephyr-manifest.json` and **rewrites each remote's entry URL** to its deployed edge URL before the remote is requested — so the same host bundle resolves to whichever version Zephyr has published, without rebuilding. The static localhost URLs are only used for local dev or when Zephyr is disabled (`DISABLE_ZEPHYR=1`).
 
 ```
-1. RemoteComponent renders
-          │
-2. React.lazy calls loadRemoteComponent(remoteName, componentName)
-          │
-3. loadManifest() → fetch /remotes-manifest.json (cached)
-          │
-4. Resolve version (override > activeVersion)
-          │
-5. loadRemoteModule(url, scope, module)
-          │
-    ┌─────▼──────────────────────────────────────┐
-    │  a. Inject <script> for remoteEntry.js     │
-    │  b. __webpack_init_sharing__('default')     │
-    │  c. container.init(__webpack_share_scopes__) │  ← only once per container
-    │  d. container.get(module)                   │
-    │  e. factory() → module exports             │
-    └─────┬──────────────────────────────────────┘
-          │
-6. Return React component
-          │
-7. Suspense resolves → component renders
+RemoteComponent → import('cart/CartWidget')
+        │
+        ▼
+  Module Federation runtime
+        │  (Zephyr beforeRequest hook rewrites the entry URL)
+        ▼
+  fetch <edge-host>/remoteEntry.js → container.get('./CartWidget')
+        │
+        ▼
+  React.lazy resolves → Suspense renders the component
 ```
-
-Critical implementation details:
-- **Script caching** — a `Map` tracks injected script URLs to avoid duplicate `<script>` tags
-- **Init guard** — an `initializedContainers` Set prevents calling `container.init()` twice on the same scope (which would throw)
-- **Share scope initialization** — `__webpack_init_sharing__('default')` must be called before `container.init()` so the host's shared modules are available for negotiation
-
-### Prefetching
-
-On app mount, `requestIdleCallback` triggers `prefetchRemote()` for each remote URL, which injects `<link rel="prefetch" as="script">` tags. This hints the browser to fetch `remoteEntry.js` files during idle time.
 
 ---
 
@@ -234,12 +217,11 @@ MFs communicate through a typed event bus built on the browser's native `CustomE
 │  Host    │                                             │   MF     │
 │          │ ◄────────────────────────────────────────── │          │
 └──────────┘    dispatch('CART_UPDATED', payload)         └──────────┘
-      │
       │         dispatch('REVIEW_SUBMITTED', payload)
-      │ ◄──────────────────────────────────────────────  ┌──────────┐
-      │                                                  │ Reviews  │
-      └──────────────────────────────────────────────►   │   MF     │
-                dispatch('NAVIGATE', payload)            └──────────┘
+      └ ◄──────────────────────────────────────────────  ┌──────────┐
+                                                          │ Reviews  │
+                                                          │   MF     │
+                                                          └──────────┘
 ```
 
 ### Event Bus API
@@ -297,11 +279,11 @@ The Cart MF uses a multi-layered state strategy to handle the unique challenge o
 
 ### State Flow
 
-1. **Initialize** — `useReducer` with a lazy initializer that reads from `localStorage` on mount
-2. **Dispatch action** — reducer produces new state → `useEffect` writes to `localStorage` and emits a custom `mgs:cart:sync` DOM event
-3. **Same-tab sync** — other `CartProvider` instances on the page receive the DOM event, check `sourceId` to ignore their own broadcasts, and dispatch a `SYNC` action with the new state
-4. **Cross-tab sync** — `StorageEvent` fires when another tab writes to `localStorage`; the listener dispatches a `SYNC` action
-5. **Event bus** — every state change also emits `CART_UPDATED` via the event bus so non-Cart MFs can react
+1. **Initialize** — `useReducer` with a lazy initializer that reads (and validates) `localStorage` on mount
+2. **Dispatch action** — the reducer produces new state → a `useEffect` always emits `CART_UPDATED` (so the host's badge hydrates), and **only when the items differ from the last-synced snapshot** writes to `localStorage` and emits a custom `mgs:cart:sync` DOM event
+3. **Same-tab sync** — other `CartProvider` instances receive the DOM event, ignore their own broadcasts via `sourceId`, then re-read storage and dispatch a `SYNC` action
+4. **Cross-tab sync** — `StorageEvent` fires when another tab writes to `localStorage`; the listener re-reads storage and dispatches `SYNC`
+5. **Echo guard** — each provider tracks the serialized snapshot it last persisted or synced in; a matching snapshot is skipped, which prevents broadcast loops without a fragile "skip the next effect" latch
 
 ### Why Not a Global Store?
 
@@ -399,9 +381,8 @@ Entry: ./src/bootstrap.tsx  (async boundary for federation)
   ├─ postcss-loader (CSS)
   ├─ Asset modules (images, fonts)
   │
-  ├─ ModuleFederationPlugin
+  ├─ ModuleFederationPlugin (dts: false)
   ├─ HtmlRspackPlugin (index.html template)
-  ├─ DefinePlugin (MF_VERSION injection)
   │
   └─ experiments: { css: true }
 ```
@@ -410,37 +391,20 @@ The `bootstrap.tsx` async entry is a Module Federation best practice — it ensu
 
 ---
 
-## Versioning Strategy
+## Deployment
 
-### Multi-Version Builds
+Builds are deployed to the edge via **Zephyr Cloud**. Each app's `rspack.config.js` wraps its config with `withZephyr()`; on build, Zephyr publishes the output and records the remote entry URLs in its manifest. The host's `zephyr:dependencies` (in `apps/store/package.json`) declare which remotes it consumes:
 
-The `build-version.js` script produces multiple versions of each remote:
-
-```
-scripts/build-version.js
-    │
-    ├── VERSION=1.0.0 pnpm --filter @mgs/cart build
-    │   └── dist/v1.0.0/remoteEntry.js
-    │
-    ├── VERSION=2.0.0 pnpm --filter @mgs/cart build
-    │   └── dist/v2.0.0/remoteEntry.js
-    │
-    └── Generates remotes-manifest.json with versioned URLs
+```json
+"zephyr:dependencies": {
+  "cart": "-mgs-cart@workspace:*",
+  "reviews": "-mgs-reviews@workspace:*"
+}
 ```
 
-Each version build uses `DefinePlugin` to inject `process.env.MF_VERSION` and sets the output `publicPath` and `path` to `dist/v{version}/`.
+At runtime the host resolves each remote to its currently-published edge URL (see [Remote Resolution](#remote-resolution)), so a remote can be redeployed to a new version without rebuilding the host — Zephyr's manifest simply points the host at the new entry.
 
-### Runtime Version Switching
-
-The `VersionToolbar` component in the host:
-
-1. Loads the manifest to discover available versions
-2. Displays version selector buttons per remote
-3. On selection, calls `setVersionOverride(remoteName, version)`
-4. `setVersionOverride` clears cached scripts and containers
-5. Page reloads → `loadRemoteComponent` reads the override → loads the selected version's `remoteEntry.js`
-
-This simulates canary deployments where different users (or the same user) can be served different versions of a micro-frontend without redeploying the host.
+For local or CI builds that should not contact Zephyr, set `DISABLE_ZEPHYR=1`; the config falls back to a plain Module Federation build using the localhost remote URLs.
 
 ---
 

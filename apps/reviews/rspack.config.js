@@ -1,18 +1,19 @@
 const path = require('path');
 const { ModuleFederationPlugin } = require('@module-federation/enhanced/rspack');
-const { HtmlRspackPlugin, DefinePlugin } = require('@rspack/core');
+const { HtmlRspackPlugin } = require('@rspack/core');
 const { withZephyr } = require('zephyr-webpack-plugin');
 
-const version = process.env.VERSION || require('./package.json').version;
+// Opt out of Zephyr (e.g. CI / offline builds) with DISABLE_ZEPHYR=1.
+const wrap = process.env.DISABLE_ZEPHYR ? (config) => config : withZephyr();
 
 /** @type {import('@rspack/core').Configuration} */
-module.exports = withZephyr()({
+module.exports = wrap({
   entry: './src/index.ts',
   output: {
-    path: path.resolve(__dirname, 'dist', `v${version}`),
+    path: path.resolve(__dirname, 'dist'),
     publicPath: 'auto',
     clean: true,
-    uniqueName: `reviews_v${version}`,
+    uniqueName: 'reviews',
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.jsx', '.js', '.json'],
@@ -51,12 +52,11 @@ module.exports = withZephyr()({
   },
   experiments: { css: true },
   plugins: [
-    new DefinePlugin({
-      'process.env.MF_VERSION': JSON.stringify(version),
-    }),
     new ModuleFederationPlugin({
       name: 'reviews',
       filename: 'remoteEntry.js',
+      // Consumers type these via the host's src/remotes.d.ts; skip auto-generation.
+      dts: false,
       exposes: {
         './ReviewList': './src/components/ReviewList',
         './ReviewForm': './src/components/ReviewForm',

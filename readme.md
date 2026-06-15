@@ -29,8 +29,6 @@ modular-game-store/
 │   ├── design-system/  # Shared UI components + Tailwind preset
 │   ├── event-bus/      # Cross-MF communication (CustomEvents)
 │   └── types/          # Shared TypeScript interfaces
-├── scripts/
-│   └── build-version.js  # Multi-version build + manifest generation
 ├── pnpm-workspace.yaml
 └── tsconfig.base.json
 ```
@@ -70,7 +68,10 @@ Open `http://localhost:3000` to use the full application.
 | `pnpm build:store` | Build only the store host |
 | `pnpm build:cart` | Build only the cart MF |
 | `pnpm build:reviews` | Build only the reviews MF |
-| `pnpm build:version` | Build multiple versions + generate manifest |
+| `pnpm typecheck` | Type-check every package (`tsc --noEmit`) |
+| `pnpm lint` | Lint with ESLint (flat config + react-hooks) |
+| `pnpm format` | Format with Prettier |
+| `pnpm test` | Run the Vitest unit suite |
 | `pnpm clean` | Remove all `dist/` folders |
 
 ---
@@ -84,9 +85,7 @@ The shell application that orchestrates all remotes. Does **not** expose any fed
 - **Game catalog** with search, genre filtering, and sorting
 - **Game detail pages** with embedded Reviews MF
 - **Cart page** with embedded Cart MF
-- **Dynamic remote loading** — remotes resolved at runtime from `remotes-manifest.json`
-- **Version toolbar** — switch remote versions at runtime
-- **Prefetching** — remote entry scripts prefetched via `requestIdleCallback`
+- **Federated remotes** — Cart and Reviews are loaded via Module Federation; remote entry URLs are resolved at runtime by Zephyr Cloud (the localhost entries in `rspack.config.js` are dev fallbacks)
 - **Error boundaries** — graceful fallback when a remote is unavailable
 
 ### Cart — `apps/cart`
@@ -131,35 +130,35 @@ Typed cross-MF communication using `CustomEvent` on `window`.
 | Event | Payload |
 |---|---|
 | `CART_ITEM_ADDED` | `{ gameId, title, price, image }` |
-| `CART_ITEM_REMOVED` | `{ gameId }` |
 | `CART_UPDATED` | `{ items, totalItems, totalPrice }` |
 | `REVIEW_SUBMITTED` | `{ gameId, rating, comment, author }` |
-| `NAVIGATE` | `{ path }` |
 
 API: `dispatch()`, `listen()`, and a `useEventBus()` React hook.
 
 ### `@mgs/types`
 
-Shared interfaces: `Game`, `Genre`, `Platform`, `CartItem`, `Review`, `RemoteManifestEntry`, `RemoteManifest`.
+Shared interfaces: `Game`, `Genre`, `Platform`, `CartItem`, `Review`.
 
 ---
 
-## Versioning Simulation
+## Quality
 
-The `build:version` script builds each remote at multiple versions (1.0.0, 2.0.0), outputs to `dist/v{version}/`, and generates an updated `remotes-manifest.json`.
+| Script | Checks |
+|---|---|
+| `pnpm typecheck` | `tsc --noEmit` across all workspaces |
+| `pnpm lint` | ESLint (flat config, `react-hooks` rules) |
+| `pnpm test` | Vitest unit suite |
 
-A **VersionToolbar** in the host app (bottom-right floating button) lets you switch between remote versions at runtime — the page reloads with the selected version's `remoteEntry.js`.
-
-A `CartWidgetV2` component exists as a v2 demonstration with enhanced animations and a slide-out mini cart panel.
+Unit tests cover the cart reducer, cart persistence/validation, and the event bus. CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → a Zephyr-free production build (`DISABLE_ZEPHYR=1`) on every push and PR.
 
 ---
 
 ## Key Design Decisions
 
-- **Dynamic remotes** — no static remote URLs in the host's Rspack config; everything resolved from a runtime manifest
+- **Federated remotes + Zephyr** — the host declares its remotes in `rspack.config.js`; Zephyr Cloud rewrites the remote entry URLs at runtime for edge deployment (localhost entries serve as dev fallbacks). Set `DISABLE_ZEPHYR=1` for a plain offline build.
 - **Shared singletons** — React and ReactDOM shared as singletons across all MFs (not eager-loaded to avoid `factory is undefined` errors)
 - **CSS isolation** — each MF processes its own Tailwind CSS from the shared preset; Rspack `experiments.css` enabled with `postcss-loader`
-- **Cart state** — localStorage-backed for persistence, with custom DOM events for same-tab sync and `StorageEvent` for cross-tab sync
+- **Cart state** — localStorage-backed for persistence, with a custom DOM event for same-tab sync and `StorageEvent` for cross-tab sync; a last-synced snapshot prevents echo loops between provider instances
 - **Error resilience** — `ErrorBoundary` + `Suspense` wrapper around every remote component with skeleton fallbacks
 
 ---

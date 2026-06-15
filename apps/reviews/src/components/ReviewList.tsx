@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, StarRating, Badge } from '@mgs/design-system';
 import type { Review } from '@mgs/types';
-import { getReviewsForGame, getAverageRating } from '../data/mockReviews';
+import { getReviewsForGame } from '../data/mockReviews';
 import ReviewForm from './ReviewForm';
 
 interface ReviewListProps {
@@ -15,7 +15,12 @@ export default function ReviewList({ gameId }: ReviewListProps) {
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [filterRating, setFilterRating] = useState<number | null>(null);
 
-  const { average, count } = getAverageRating(gameId);
+  // Derive from live state so the summary updates when a review is submitted
+  const { average, count } = useMemo(() => {
+    if (reviews.length === 0) return { average: 0, count: 0 };
+    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+    return { average: sum / reviews.length, count: reviews.length };
+  }, [reviews]);
 
   const handleNewReview = (review: Review) => {
     setReviews((prev) => [review, ...prev]);

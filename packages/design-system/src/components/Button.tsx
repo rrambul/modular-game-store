@@ -6,15 +6,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
 }
 
-const variants: Record<string, string> = {
+type Variant = NonNullable<ButtonProps['variant']>;
+type Size = NonNullable<ButtonProps['size']>;
+
+const variants: Record<Variant, string> = {
   primary: 'bg-accent hover:bg-accent-hover text-white shadow-md hover:shadow-glow',
   secondary: 'bg-surface-elevated hover:bg-surface-overlay text-text-primary border border-white/10',
   ghost: 'bg-transparent hover:bg-white/5 text-text-primary',
-  danger: 'bg-red-600 hover:bg-red-500 text-white',
+  danger: 'bg-danger hover:bg-danger-hover text-white',
   success: 'bg-success hover:bg-success-hover text-white',
 };
 
-const sizes: Record<string, string> = {
+const sizes: Record<Size, string> = {
   sm: 'px-3 py-1.5 text-sm',
   md: 'px-4 py-2 text-base',
   lg: 'px-6 py-3 text-lg',

@@ -3,8 +3,11 @@ const { ModuleFederationPlugin } = require('@module-federation/enhanced/rspack')
 const { HtmlRspackPlugin } = require('@rspack/core');
 const { withZephyr } = require('zephyr-webpack-plugin');
 
+// Opt out of Zephyr (e.g. CI / offline builds) with DISABLE_ZEPHYR=1.
+const wrap = process.env.DISABLE_ZEPHYR ? (config) => config : withZephyr();
+
 /** @type {import('@rspack/core').Configuration} */
-module.exports = withZephyr()({
+module.exports = wrap({
   entry: './src/index.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -48,6 +51,8 @@ module.exports = withZephyr()({
   plugins: [
     new ModuleFederationPlugin({
       name: 'store',
+      // Federated types are hand-maintained in src/remotes.d.ts; skip auto-generation.
+      dts: false,
       remotes: {
         cart: 'cart@http://localhost:3001/remoteEntry.js',
         reviews: 'reviews@http://localhost:3002/remoteEntry.js',

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { EventNames, useEventBus } from '@mgs/event-bus';
 import { Badge } from '@mgs/design-system';
 import { Link, useLocation } from 'react-router-dom';
@@ -8,13 +8,10 @@ export function AppHeader() {
   const location = useLocation();
   const [cartCount, setCartCount] = useState(0);
 
+  // CART_UPDATED is the single source of truth for the badge: the Cart MF emits it on
+  // mount (hydration) and on every change, so we never double-count or drift.
   useEventBus(EventNames.CART_UPDATED, (payload) => {
     setCartCount(payload.totalItems);
-  });
-
-  // Also listen for individual adds to increment optimistically
-  useEventBus(EventNames.CART_ITEM_ADDED, () => {
-    setCartCount((prev) => prev + 1);
   });
 
   return (

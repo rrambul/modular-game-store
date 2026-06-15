@@ -46,19 +46,3 @@ export interface Review {
   date: string;
   helpful: number;
 }
-
-export interface RemoteManifestEntry {
-  url: string;
-  scope: string;
-  module: string;
-  version: string;
-}
-
-export interface RemoteManifest {
-  [remoteName: string]: {
-    versions: {
-      [version: string]: RemoteManifestEntry;
-    };
-    activeVersion: string;
-  };
-}

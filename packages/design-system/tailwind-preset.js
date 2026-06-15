@@ -35,6 +35,10 @@ module.exports = {
           DEFAULT: '#f59e0b',
           hover: '#fbbf24',
         },
+        danger: {
+          DEFAULT: '#ef4444',
+          hover: '#f87171',
+        },
         text: {
           primary: '#f1f5f9',
           secondary: '#94a3b8',

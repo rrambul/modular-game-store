@@ -78,14 +78,3 @@ const mockReviews: Review[] = [
 export function getReviewsForGame(gameId: string): Review[] {
   return mockReviews.filter((r) => r.gameId === gameId);
 }
-
-export function getAllReviews(): Review[] {
-  return mockReviews;
-}
-
-export function getAverageRating(gameId: string): { average: number; count: number } {
-  const reviews = getReviewsForGame(gameId);
-  if (reviews.length === 0) return { average: 0, count: 0 };
-  const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-  return { average: sum / reviews.length, count: reviews.length };
-}
